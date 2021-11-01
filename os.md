@@ -180,7 +180,7 @@ Steps in making sysCalls
 procedure / funcion call : 호출된다고 user모드에서 kernel 모드로 바뀌지 않고, os가 실행되지 않는다.
 
 
-C 프로그램에서 읽기 작업을 수행할때, SysCall을 사용자가 직접 호출하지 않고 SysCall을 담당하는 라이브러리를
+C 프로그램에서 읽기 작업을 수행할때, SysCall을 사용자가 직접 호출하지 않고 SysCall을 담당하는 라이브러리(libc)를
 호출하여 간접적으로 실행한다.
 
 User program -> Library procedure -> kernel access
@@ -278,6 +278,7 @@ System Calls for Process Managemnt
 
 Shell : UNIX-based 운영체제에서 bash, zsh, fish와 같이 터미널에 입력된 사용자의 명령어를 해석해 커널에
 전달하는 명령어 해석기
+
 
 ```
 while(TRUE) {
