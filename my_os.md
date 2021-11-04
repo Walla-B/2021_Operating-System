@@ -300,14 +300,18 @@ ls, cp, cd, find 와 같은 셸 명령어에서 사용되는 프로그램들이 
  
  각각 장단점이 있지만, 전자는 복잡하나 개개인에 맞게 커스텀이 가능하고, 후자는 간편하다는 장점이 있다.
 
-> Invoking syscall without standard library
+> Invoking syscall without standard library (custom made system call function)
 
  
 [참고](https://the-linux-channel.the-toffee-project.org/index.php?page=5-tutorials-a-linux-system-call-in-c-without-a-standard-library&lang=en)
 
-[x86 syscall table](https://github.com/torvalds/linux/blob/v3.13/arch/x86/syscalls/syscall_64.tbl)
+(linux)
 
-[syscall.h](https://github.com/torvalds/linux/blob/v3.13/arch/x86/syscalls/syscall_64.tbl)
+[syscall.h](https://github.com/torvalds/linux/blob/master/include/linux/syscalls.h)
+
+[syscall table for x86_64](https://github.com/torvalds/linux/blob/v3.13/arch/x86/syscalls/syscall_64.tbl)
+
+[asm/unistd.h](https://github.com/ilbers/linux/blob/master/arch/sh/include/uapi/asm/unistd_64.h)
 
 (glibc)
 
@@ -315,16 +319,124 @@ ls, cp, cd, find 와 같은 셸 명령어에서 사용되는 프로그램들이 
 
 [sys/stat.h](https://pubs.opengroup.org/onlinepubs/7908799/xsh/sysstat.h.html)
 
+[sys/syscall.h](https://github.com/lattera/glibc/blob/master/sysdeps/unix/sysv/linux/sys/syscall.h) -> kernel의 asm/unistd.h 참조
+
+[syscall.S](https://github.com/lattera/glibc/blob/master/sysdeps/unix/sysv/linux/x86_64/syscall.S)
+> 어셈블리는 안들었지만 약간의 어셈블리
+
+```asm
+// exit program syscall for x86_64 (64-bit)
+mov rdi,rax /* syscall param 1 = rax (ret value of main) */
+mov rax,60 /* SYS_exit */
+syscall
+ret
+
+// exit program syscall for x86 (32-bit)
+mov eax,1
+syscall // == int 0x80 == int 80h == call interupt 80h 
+// int를 이용해 인터럽트를 직접 부르는것은 선택 사항이며, x86_64 환경에서는 사용할수 없다.
+
+```
+다음과 같이 같은 시스템 콜도 아키텍쳐에 따라 다른 것을 볼수있다. 이는 위의 syscall table 에서
+볼 수 있듯이,
+
+syscall_64.tbl
+```
+<number> <abi> <name> <entry point>
+
+...
+
+57	common	fork			stub_fork
+58	common	vfork			stub_vfork
+59	64	    execve			stub_execve
+60	common	exit			sys_exit
+61	common	wait4			sys_wait4
+62	common	kill			sys_kill
+63	common	uname			sys_newuname
+
+...
+```
+
+syscall_32.tbl
+```
+<number> <abi> <name> <entry point> <compat entry point>
+
+0	i386	restart_syscall		sys_restart_syscall
+1	i386	exit			    sys_exit
+2	i386	fork			    sys_fork			stub32_fork
+3	i386	read			    sys_read
+
+...
+```
+
+과 같이 다른 어셈블리 명령이 필요하고, linux에서
 
 > 그래서 System Call 이란 무엇인가?
 
-syscall은 근본적으로 CPU Instruction이다. 따라서 각 CPU 아키텍쳐에 맞는 
+syscall은 근본적으로 CPU Instruction이다. 따라서 각 CPU 아키텍쳐마다 다르며, 각 아키텍쳐에 맞는 
 각 레지스터에 알맞는 값을 전달해야 하지만, 사용자가 이를 직접 전달하는것은 매우 어렵다. 따라서
 compiler와 System call을 wrap한 라이브러리를 통해 아키텍쳐 종속적인 부분들을 자동으로 해결하고
 처리할 수 있도록 하는 것이다.
 
 그 라이브러리가 바로 glibc이며, 컴파일러는 gcc 이다.
 
-glibc는 한개의 파일이 아닌 여러개의 헤더파일등이 포함된 standard library이며, glibc 안에
+glibc 는 한개의 파일이 아닌 여러개의 헤더파일등이 포함된 standard library이며, glibc 안에
 unistd.h, sys/stat.h 와 같은 헤더파일들이 여럿 존재한다. 바로 위 syscall을 어셈블리로 직접 구현한것이
-이 glibc를 사용하지 않기 위해서였으며, 이 모든 수고를 미리 해준것이 바로 glibc이다.
+이 glibc를 사용하지 않기 위해서였으며, 시스템 콜을 운영체제와 상관없이 손쉽게 사용할 수 있도록
+한단계의 추상화를 거친것이 c standard library (glibc) 의 시스템 콜이다.
+
++ C가 아닌 다른 언어들에서도 Syscall이 필요할텐데, 어떻게 사용하는가?
+  
+  : dependency를 추가하여 간접적으로 각 플랫폼의 libc에서 부르거나, (Python, Java)
+  위의 standard library 없이 직접 어셈블리로 system call wrapper function을 만든 것처럼 각 커널에 맞는 라이브러리를 직접 구현하는 방법이 있다(Go, Pascal)
+
+  [참고](https://stackoverflow.com/questions/26297151/how-do-non-c-languages-interact-with-operating-system)
+
+
+
+
+[where to find definition](https://www.quora.com/Where-is-the-function-printf-defined-The-header-file-stdio-h-just-contains-the-declaration)
+
+[printf()가 결국 write()를 호출하는 원리](https://stackoverflow.com/questions/21084218/difference-between-write-and-printf)
+```
+<stdio.h> printf() -> 
+결국 <unistd.h> 의 write() syscall을 부름  -> 
+write() 는 'sys/syscall.h' (정확히는 asm/unistd.h) 의 매크로를 참조해 넘버링된 syscall 함수 호출 ->
+syscall.S의 어셈블리로 정의된 함수에 전달하여 syscall 호출.
+```
+
+> shell의 수도코드
+
+(C로 작성된) 쉘도 근본적으로 프로세스이다. open, cd, write 등을 할때 직접 작성한 프로그램과 마찬가지로 libc를 이용하여 간접적으로 시스템 콜을 호출하는 것이다.
+
+[참고](http://www.cs.cornell.edu/courses/cs414/2002fa/homework/shell/shell.html)
+
+이처럼 C로 씌여진 Shell도 libc에서 Syscall을 간접적으로 호출하는 프로그램에 지나지 않는 것을 알수있음.
+```
+int main (int argc, char **argv) {
+	while (1) {
+		int childPid;
+		char * cmdLine;
+
+	        printPrompt();
+
+	        cmdLine= readCommandLine();
+		
+		if (isBuiltInCommand(cmdLine)) {
+		    executeBuiltInCommand(cmdLine);
+		} 
+        else {		
+		     childPid = fork();
+		     if (childPid == 0){
+			exec ( getCommand(cmdLine));
+			
+		     } else {
+			if (runInForeground(cmdLine)){
+				wait (childPid);
+			} else {
+			        record in list of background jobs
+			}		
+        }
+    }
+}
+```
