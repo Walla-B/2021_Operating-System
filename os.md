@@ -263,7 +263,7 @@ Process Creation
 
 Process Termination
 ---
-프로그램이 종료하는 경우
+프로세스가 종료하는 경우
 1. Normal exit (자발적)
 2. Error exit (자발적) -> 예외처리를 한 경우
 3. Fatal error (비자발적) -> 예외처리를 못한 경우
